@@ -28,3 +28,18 @@ Thumbs.db
 # Large data files (optional if needed)
 # *.csv
 # *.png
+# Ignore all pickle files
+
+
+# Ignore numpy train/test files
+X_train*
+X_test*
+y_train*
+y_test*
+
+# Or ignore all numpy arrays
+*.npy
+
+# Optional: ignore any train/test folders
+train/
+test/
