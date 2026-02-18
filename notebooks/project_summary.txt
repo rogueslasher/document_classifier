@@ -1,0 +1,24 @@
+DOCUMENT CLASSIFICATION WITH ACTIVE LEARNING
+Project Summary
+Dataset:
+--------------------------------------------------
+  • Total Documents: 10,994
+  • Training Set: 8,795
+  • Test Set: 2,199
+  • Categories: 20
+  • Vocabulary Size: 5000
+
+Active Learning:
+--------------------------------------------------
+  • Initial Labeled: 879
+  • Final Labeled: 1,829
+  • Iterations: 20
+  • Batch Size: 50
+
+Performance:
+--------------------------------------------------
+  • AL Final Accuracy: 64.17%
+  • Random Final Accuracy: 65.48%
+  • Improvement: +-1.32pp
+  • Label Savings: ~0.0%
+
