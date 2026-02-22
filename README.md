@@ -1,6 +1,8 @@
 # Document Classification with Active Learning
 
-An NLP system that classifies documents into 20 categories using Active Learning, reducing labeling effort by 35% while achieving 85%+ accuracy.
+An NLP system that classifies documents into 20 categories using Active Learning, reducing labeling effort by 35% while achieving 85.3% accuracy.
+
+This project demonstrates how uncertainty-based sample selection improves model performance while requiring fewer labeled examples.
 
 Built using Python, scikit-learn, NLTK, and Streamlit.
 
@@ -8,42 +10,43 @@ Built using Python, scikit-learn, NLTK, and Streamlit.
 
 ## Overview
 
-Traditional text classification requires large labeled datasets, which are expensive and time-consuming.
+Text classification models typically require large labeled datasets, which are expensive and time-consuming to create.
 
-This project implements Active Learning with uncertainty sampling, allowing the model to select the most informative samples and learn more efficiently.
+This project implements Active Learning using uncertainty sampling, where the model iteratively selects the most informative samples to label, improving learning efficiency and performance.
 
-**Key outcomes:**
+Key outcomes:
 
-- 35% fewer labeled examples required  
-- +3.2% accuracy improvement vs random sampling  
-- Final accuracy: 85.3%  
-- 20-class document classification  
+- Final accuracy: 85.3%
+- +3.2% accuracy improvement over random sampling
+- 35% reduction in labeled data required
+- Multi-class classification across 20 categories
 
-Dataset: 20 Newsgroups (11,314 training documents)
+Dataset used: 20 Newsgroups (11,314 training documents)
 
 ---
 
 ## Features
 
-- Active Learning using uncertainty sampling  
-- End-to-end NLP pipeline (preprocessing → feature engineering → training)  
-- TF-IDF vectorization  
-- Logistic Regression classifier  
-- Model saving and loading  
-- Interactive Streamlit interface for predictions  
+- Active Learning implementation using uncertainty sampling
+- Complete NLP pipeline from preprocessing to evaluation
+- TF-IDF feature extraction
+- Logistic Regression classifier
+- Model evaluation and performance analysis
+- Visualization of learning performance
+- Streamlit interface for interactive predictions
 
 ---
 
 ## Tech Stack
 
-- Python  
-- scikit-learn  
-- NLTK  
-- Streamlit  
-- matplotlib  
-- seaborn  
-- TF-IDF  
-- Logistic Regression  
+- Python
+- scikit-learn
+- NLTK
+- Streamlit
+- matplotlib
+- seaborn
+- NumPy
+- pandas
 
 ---
 
@@ -55,47 +58,61 @@ Dataset: 20 Newsgroups (11,314 training documents)
 | F1 Score | 0.847 | 0.814 |
 | Label Efficiency | 35% fewer labels | — |
 
+Active Learning achieves better performance with significantly fewer labeled examples.
+
 ---
 
 ## Architecture
 
-Pipeline:
+Pipeline workflow:
 
 ```
-Text Input
+Raw Text
    ↓
-Preprocessing (tokenization, lemmatization)
+Text Preprocessing
    ↓
-TF-IDF Vectorization
+TF-IDF Feature Extraction
    ↓
-Logistic Regression
+Baseline Model Training
    ↓
-Active Learning Loop (uncertainty sampling)
+Active Learning Loop
    ↓
-Final trained model
+Model Evaluation and Analysis
 ```
 
-Uncertainty formula:
+Uncertainty sampling formula:
 
 ```
 uncertainty = 1 − max(predicted_probability)
 ```
 
+Samples with highest uncertainty are selected for labeling.
+
 ---
 
 ## Installation
 
+Clone the repository:
+
 ```bash
 git clone https://github.com/rogueslasher/document-classifier-active-learning.git
 cd document-classifier-active-learning
+```
 
+Create virtual environment:
+
+```bash
 python -m venv venv
 venv\Scripts\activate
+```
 
+Install dependencies:
+
+```bash
 pip install -r requirements.txt
 ```
 
-Download NLTK data:
+Download NLTK resources:
 
 ```bash
 python -c "import nltk; nltk.download('stopwords'); nltk.download('punkt'); nltk.download('wordnet')"
@@ -103,26 +120,28 @@ python -c "import nltk; nltk.download('stopwords'); nltk.download('punkt'); nltk
 
 ---
 
-## Run Training Pipeline
+## Running the Project
 
-```bash
-python step3_text_preprocessing.py
-python step4_feature_engineering.py
-python step5_baseline_model.py
-python step6_active_learning.py
+Open the notebooks in order:
+
+```
+notebooks/
+│
+├── explore_data.ipynb
+├── text_preprocess.ipynb
+├── feature_engineering.ipynb
+├── baseline_model.ipynb
+├── active_learning.ipynb
+└── analysis.ipynb
 ```
 
-Run demo app:
+Run each notebook sequentially to execute the full pipeline.
+
+To run the Streamlit interface:
 
 ```bash
 streamlit run app.py
 ```
-
----
-
-## Live Demo
-
-Deployment coming soon.
 
 ---
 
@@ -131,13 +150,22 @@ Deployment coming soon.
 ```
 document-classifier-active-learning/
 │
-├── step3_text_preprocessing.py
-├── step4_feature_engineering.py
-├── step5_baseline_model.py
-├── step6_active_learning.py
+├── notebooks/
+│   ├── explore_data.ipynb
+│   ├── text_preprocess.ipynb
+│   ├── feature_engineering.ipynb
+│   ├── baseline_model.ipynb
+│   ├── active_learning.ipynb
+│   └── analysis.ipynb
+│
+├── notebooks/
+│   ├── complete_analysis.png
+│   ├── per_class_performance.png
+│   ├── project_summary.txt
+│   └── sample_data.csv
+│
 ├── app.py
 ├── requirements.txt
-├── final_model.pkl
 └── README.md
 ```
 
@@ -145,20 +173,22 @@ document-classifier-active-learning/
 
 ## Key Learnings
 
-- Active Learning implementation  
-- NLP preprocessing and TF-IDF  
-- Model evaluation and optimization  
-- Building deployable ML pipelines  
-- Streamlit integration  
+- Active Learning implementation in real-world classification
+- Natural Language Processing pipeline development
+- TF-IDF feature engineering
+- Model evaluation using accuracy and F1 score
+- Efficient data utilization strategies
+- End-to-end machine learning workflow
 
 ---
 
-## Future Work
+## Future Improvements
 
-- Deploy using Streamlit Cloud or AWS  
-- Add BERT-based classifier  
-- Build FastAPI backend  
-- Add explainability using SHAP or LIME  
+- Deploy using Streamlit Cloud or AWS
+- Implement BERT-based classification
+- Add FastAPI backend for inference
+- Implement model explainability using SHAP or LIME
+- Convert notebooks into production pipeline scripts
 
 ---
 
