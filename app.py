@@ -9,6 +9,9 @@ import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
+from scipy.sparse import vstack
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import accuracy_score, f1_score
 
 
 @st.cache_resource
@@ -70,7 +73,7 @@ def main():
     st.sidebar.header("🎯 Active Learning Advantage")
     st.sidebar.metric("Accuracy Gain", f"+{improvement:.2f}pp")
 
-    tab1, tab2, tab3 = st.tabs(["🔮 Classify Text", "📈 Model Performance", "ℹ️ About"])
+    tab1, tab2, tab3, tab4 = st.tabs(["🔮 Classify Text", "⚙️ Labeling Studio", "📈 Model Performance", "ℹ️ About"])
 
     with tab1:
         st.header("Classify a Document")
@@ -112,6 +115,171 @@ def main():
                     st.pyplot(fig)
 
     with tab2:
+        st.header("⚙️ Active Learning Labeling Studio")
+        st.markdown(
+            "Act as the **Human Oracle**! Label the documents that the model is **most uncertain** about "
+            "based on your selected sampling strategy. The model will retrain instantly with your feedback."
+        )
+
+        # Initialize AL session state if not already done
+        if 'al_initialized' not in st.session_state:
+            with st.spinner("Initializing Active Learning Studio (loading datasets)..."):
+                from src.utils import load_raw_train_test_data
+                
+                # Load full matrices
+                with open('train_test_data.pkl', 'rb') as f:
+                    full_data = pickle.load(f)
+                
+                st.session_state['X_train_full'] = full_data['X_train']
+                st.session_state['y_train_full'] = full_data['y_train']
+                st.session_state['X_test'] = full_data['X_test']
+                st.session_state['y_test'] = full_data['y_test']
+                
+                # Load raw text data
+                df_train, df_test = load_raw_train_test_data()
+                st.session_state['df_train'] = df_train
+                
+                # Pick 500 random samples as the starting labeled set
+                np.random.seed(42)
+                initial_indices = np.random.choice(len(df_train), size=500, replace=False)
+                pool_indices = [i for i in range(len(df_train)) if i not in initial_indices]
+                
+                # Slice matrices
+                X_labeled = st.session_state['X_train_full'][initial_indices]
+                y_labeled = st.session_state['y_train_full'][initial_indices]
+                
+                # Train baseline model for active learning
+                model_al = LogisticRegression(max_iter=1000, solver='lbfgs', random_state=42)
+                model_al.fit(X_labeled, y_labeled)
+                
+                # Evaluate
+                y_pred = model_al.predict(st.session_state['X_test'])
+                acc = accuracy_score(st.session_state['y_test'], y_pred)
+                f1 = f1_score(st.session_state['y_test'], y_pred, average='weighted')
+                
+                st.session_state['al_X_train'] = X_labeled
+                st.session_state['al_y_train'] = y_labeled
+                st.session_state['al_pool_indices'] = pool_indices
+                st.session_state['al_model'] = model_al
+                st.session_state['al_history'] = [{'n_labeled': 500, 'accuracy': acc, 'f1': f1}]
+                st.session_state['al_current_sample_idx'] = None
+                st.session_state['al_labeled_count'] = 0
+                st.session_state['al_initialized'] = True
+
+        # Controls
+        col_ctrl1, col_ctrl2, col_ctrl3 = st.columns([2, 2, 3])
+        with col_ctrl1:
+            strategy = st.selectbox(
+                "Sampling Strategy",
+                ["Entropy", "Margin", "Random"],
+                help="Entropy: Selects sample with highest prediction uncertainty across all classes.\n"
+                     "Margin: Selects sample with smallest confidence margin between top 2 classes.\n"
+                     "Random: Selects a random sample from the pool."
+            )
+        with col_ctrl2:
+            st.metric("Samples Labeled in Session", st.session_state['al_labeled_count'])
+        with col_ctrl3:
+            current_acc = st.session_state['al_history'][-1]['accuracy'] * 100
+            initial_acc = st.session_state['al_history'][0]['accuracy'] * 100
+            gain = current_acc - initial_acc
+            st.metric(
+                "Live Model Accuracy", 
+                f"{current_acc:.2f}%", 
+                delta=f"+{gain:.2f}pp" if gain >= 0 else f"{gain:.2f}pp"
+            )
+
+        # Select sample
+        if st.session_state['al_current_sample_idx'] is None:
+            if len(st.session_state['al_pool_indices']) > 0:
+                X_train_full = st.session_state['X_train_full']
+                pool_indices = st.session_state['al_pool_indices']
+                model_al = st.session_state['al_model']
+                
+                if strategy == "Random":
+                    next_idx = int(np.random.choice(pool_indices))
+                else:
+                    X_pool = X_train_full[pool_indices]
+                    probas = model_al.predict_proba(X_pool)
+                    
+                    if strategy == "Entropy":
+                        entropy = -np.sum(probas * np.log(probas + 1e-10), axis=1)
+                        relative_idx = np.argmax(entropy)
+                    elif strategy == "Margin":
+                        sorted_probas = np.sort(probas, axis=1)
+                        margin = sorted_probas[:, -1] - sorted_probas[:, -2]
+                        relative_idx = np.argmin(margin)
+                    
+                    next_idx = pool_indices[relative_idx]
+                
+                st.session_state['al_current_sample_idx'] = next_idx
+            else:
+                st.info("Congratulations! All pool samples have been labeled.")
+                st.session_state['al_current_sample_idx'] = None
+
+        # Display active sample
+        current_idx = st.session_state['al_current_sample_idx']
+        if current_idx is not None:
+            df_train = st.session_state['df_train']
+            raw_text = df_train.iloc[current_idx]['text']
+            true_cat = df_train.iloc[current_idx]['category']
+            
+            X_sample = st.session_state['X_train_full'][current_idx]
+            model_al = st.session_state['al_model']
+            pred_idx = model_al.predict(X_sample)[0]
+            pred_prob = model_al.predict_proba(X_sample)[0][pred_idx] * 100
+            pred_cat = categories[pred_idx]
+
+            st.markdown("### 📄 Document to Label")
+            
+            st.text_area(
+                "Document Text (Unlabeled)",
+                value=raw_text,
+                height=250,
+                disabled=True
+            )
+
+            st.markdown(f"🤖 **Model's Current Prediction:** `{pred_cat}` (Confidence: {pred_prob:.1f}%)")
+
+            try:
+                default_sel_idx = categories.index(pred_cat)
+            except ValueError:
+                default_sel_idx = 0
+
+            with st.form("labeling_form", clear_on_submit=True):
+                selected_label_str = st.selectbox(
+                    "Assign the correct category:",
+                    categories,
+                    index=default_sel_idx
+                )
+                
+                submitted = st.form_submit_button("🚀 Submit Label & Retrain Model", type="primary")
+                
+                if submitted:
+                    selected_label_idx = categories.index(selected_label_str)
+                    
+                    st.session_state['al_X_train'] = vstack([st.session_state['al_X_train'], X_sample])
+                    st.session_state['al_y_train'] = np.append(st.session_state['al_y_train'], selected_label_idx)
+                    st.session_state['al_pool_indices'].remove(current_idx)
+                    
+                    st.session_state['al_model'].fit(st.session_state['al_X_train'], st.session_state['al_y_train'])
+                    
+                    y_pred = st.session_state['al_model'].predict(st.session_state['X_test'])
+                    new_acc = accuracy_score(st.session_state['y_test'], y_pred)
+                    new_f1 = f1_score(st.session_state['y_test'], y_pred, average='weighted')
+                    
+                    st.session_state['al_history'].append({
+                        'n_labeled': len(st.session_state['al_y_train']),
+                        'accuracy': new_acc,
+                        'f1': new_f1
+                    })
+                    
+                    st.session_state['al_labeled_count'] += 1
+                    st.session_state['al_current_sample_idx'] = None
+                    
+                    st.success(f"Feedback recorded! Retrained model. New Accuracy: {new_acc*100:.2f}%")
+                    st.rerun()
+
+    with tab3:
         al_df = results['active_learning']
         random_df = results['random_sampling']
 
@@ -133,12 +301,13 @@ def main():
             ax.set_ylabel("F1-Score (%)")
             st.pyplot(fig)
 
-    with tab3:
+    with tab4:
         st.header("About")
         st.write(
             "This project demonstrates Active Learning for text classification "
             "using Logistic Regression and TF-IDF features on the 20 Newsgroups dataset."
         )
+
 
 
 if __name__ == "__main__":
