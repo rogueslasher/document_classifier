@@ -164,3 +164,62 @@ def get_top_features_for_category(model, vectorizer, category_idx, top_n=15):
         'Word': top_words,
         'Weight': top_weights
     })
+
+def get_embeddings_model():
+    """
+    Lazy-loads the lightweight SentenceTransformer model.
+    """
+    from sentence_transformers import SentenceTransformer
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+def explain_embeddings_prediction_loo(text, encoder, model, pred_class_idx, stop_words, lemmatizer):
+    """
+    Calculates the contribution of each word in the input text towards the predicted class 
+    using a Leave-One-Out (LOO) perturbation method for dense embeddings.
+    """
+    # Split text into tokens keeping whitespace structure
+    tokens = re.split(r'(\s+)', text)
+    
+    # Extract unique words
+    clean_words = []
+    for token in tokens:
+        if not token.strip():
+            continue
+        word_clean = re.sub(r'[^a-zA-Z]', '', token).lower()
+        if word_clean:
+            clean_words.append(word_clean)
+            
+    unique_words = list(set(clean_words))
+    if not unique_words:
+        return {}
+        
+    # Baseline probability on the full text
+    base_vector = encoder.encode([text])
+    base_prob = model.predict_proba(base_vector)[0][pred_class_idx]
+    
+    word_contributions = {}
+    
+    # Perturbation analysis: remove each word and compute the probability drop
+    for word in unique_words:
+        word_lem = lemmatizer.lemmatize(word)
+        
+        perturbed_tokens = []
+        for token in tokens:
+            word_clean = re.sub(r'[^a-zA-Z]', '', token).lower()
+            if word_clean and lemmatizer.lemmatize(word_clean) == word_lem:
+                # Omit occurrences of the word
+                continue
+            perturbed_tokens.append(token)
+            
+        perturbed_text = "".join(perturbed_tokens)
+        
+        if not perturbed_text.strip():
+            perturbed_prob = 0.0
+        else:
+            perturbed_vector = encoder.encode([perturbed_text])
+            perturbed_prob = model.predict_proba(perturbed_vector)[0][pred_class_idx]
+            
+        # Contribution is the drop in probability
+        word_contributions[word_lem] = float(base_prob - perturbed_prob)
+        
+    return word_contributions
