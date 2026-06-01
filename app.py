@@ -114,6 +114,30 @@ def main():
                     ax.set_title("Top 10 Categories")
                     st.pyplot(fig)
 
+                # Explain prediction - Word Highlights
+                from src.utils import explain_prediction, get_highlighted_html
+                with st.spinner("Analyzing feature contributions..."):
+                    word_contributions = explain_prediction(
+                        user_input, vectorizer, model, prediction, stop_words, lemmatizer
+                    )
+                    highlighted_html = get_highlighted_html(
+                        user_input, word_contributions, lemmatizer
+                    )
+
+                st.markdown("---")
+                st.markdown("### 🔍 Model Explanation (Word Contributions)")
+                st.markdown(
+                    "The highlighted words below drove the model's classification decision. "
+                    "Hover over any highlighted word to inspect its numeric contribution score. "
+                    "**Green** words increased confidence in this category; **red** words decreased it."
+                )
+                
+                # HTML Container
+                st.markdown(
+                    f'<div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; font-family: monospace; line-height: 1.8; white-space: pre-wrap; font-size: 15px;">{highlighted_html}</div>',
+                    unsafe_allow_html=True
+                )
+
     with tab2:
         st.header("⚙️ Active Learning Labeling Studio")
         st.markdown(
