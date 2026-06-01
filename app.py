@@ -103,16 +103,26 @@ def main():
                     st.metric("Confidence", f"{confidence:.1f}%")
 
                 with col2:
+                    import altair as alt
                     prob_df = pd.DataFrame({
                         'Category': categories,
                         'Probability': probabilities * 100
                     }).sort_values('Probability', ascending=False)
 
-                    fig, ax = plt.subplots(figsize=(8, 6))
-                    ax.barh(prob_df['Category'][:10], prob_df['Probability'][:10])
-                    ax.set_xlabel("Probability (%)")
-                    ax.set_title("Top 10 Categories")
-                    st.pyplot(fig)
+                    top_prob_df = prob_df.head(10).copy()
+                    chart = alt.Chart(top_prob_df).mark_bar(cornerRadiusEnd=4).encode(
+                        x=alt.X('Probability:Q', title='Confidence (%)', scale=alt.Scale(domain=[0, 100])),
+                        y=alt.Y('Category:N', sort='-x', title='Category'),
+                        color=alt.Color('Probability:Q', scale=alt.Scale(scheme='blues', reverse=True), legend=None),
+                        tooltip=[
+                            alt.Tooltip('Category:N', title='Category'),
+                            alt.Tooltip('Probability:Q', format='.2f', title='Probability (%)')
+                        ]
+                    ).properties(
+                        title="Top 10 Category Probabilities",
+                        height=300
+                    )
+                    st.altair_chart(chart, use_container_width=True)
 
                 # Explain prediction - Word Highlights
                 from src.utils import explain_prediction, get_highlighted_html
@@ -304,26 +314,102 @@ def main():
                     st.rerun()
 
     with tab3:
-        al_df = results['active_learning']
-        random_df = results['random_sampling']
+        st.header("📈 Model Performance Analysis")
+        st.markdown(
+            "Compare the learning efficiency of **Active Learning** vs. **Random Sampling**. "
+            "If you have labeled samples in this session, your **live session** performance will also be shown!"
+        )
+
+        al_df = results['active_learning'].copy()
+        random_df = results['random_sampling'].copy()
+
+        al_df['Strategy'] = 'Active Learning (Pre-calculated)'
+        al_df['Accuracy (%)'] = al_df['accuracy'] * 100
+        al_df['F1-Score (%)'] = al_df['f1'] * 100
+
+        random_df['Strategy'] = 'Random Sampling (Pre-calculated)'
+        random_df['Accuracy (%)'] = random_df['accuracy'] * 100
+        random_df['F1-Score (%)'] = random_df['f1'] * 100
+
+        combined_df = pd.concat([al_df, random_df], ignore_index=True)
+
+        if 'al_history' in st.session_state and len(st.session_state['al_history']) > 1:
+            session_df = pd.DataFrame(st.session_state['al_history'])
+            session_df['Strategy'] = 'Interactive Session (Live)'
+            session_df['Accuracy (%)'] = session_df['accuracy'] * 100
+            session_df['F1-Score (%)'] = session_df['f1'] * 100
+            combined_df = pd.concat([combined_df, session_df], ignore_index=True)
 
         col1, col2 = st.columns(2)
 
         with col1:
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.plot(al_df['n_labeled'], al_df['accuracy']*100)
-            ax.plot(random_df['n_labeled'], random_df['accuracy']*100)
-            ax.set_xlabel("Labeled Examples")
-            ax.set_ylabel("Accuracy (%)")
-            st.pyplot(fig)
+            acc_chart = alt.Chart(combined_df).mark_line(point=True).encode(
+                x=alt.X('n_labeled:Q', title='Number of Labeled Samples'),
+                y=alt.Y('Accuracy (%):Q', title='Accuracy (%)', scale=alt.Scale(zero=False)),
+                color=alt.Color('Strategy:N', scale=alt.Scale(
+                    domain=['Active Learning (Pre-calculated)', 'Random Sampling (Pre-calculated)', 'Interactive Session (Live)'],
+                    range=['#3b82f6', '#9ca3af', '#10b981']
+                )),
+                tooltip=['Strategy', 'n_labeled', alt.Tooltip('Accuracy (%):Q', format='.2f')]
+            ).properties(
+                title="Model Accuracy Comparison",
+                height=350
+            ).interactive()
+            st.altair_chart(acc_chart, use_container_width=True)
 
         with col2:
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.plot(al_df['n_labeled'], al_df['f1']*100)
-            ax.plot(random_df['n_labeled'], random_df['f1']*100)
-            ax.set_xlabel("Labeled Examples")
-            ax.set_ylabel("F1-Score (%)")
-            st.pyplot(fig)
+            f1_chart = alt.Chart(combined_df).mark_line(point=True).encode(
+                x=alt.X('n_labeled:Q', title='Number of Labeled Samples'),
+                y=alt.Y('F1-Score (%):Q', title='F1-Score (%)', scale=alt.Scale(zero=False)),
+                color=alt.Color('Strategy:N', scale=alt.Scale(
+                    domain=['Active Learning (Pre-calculated)', 'Random Sampling (Pre-calculated)', 'Interactive Session (Live)'],
+                    range=['#3b82f6', '#9ca3af', '#10b981']
+                )),
+                tooltip=['Strategy', 'n_labeled', alt.Tooltip('F1-Score (%):Q', format='.2f')]
+            ).properties(
+                title="Model F1-Score Comparison",
+                height=350
+            ).interactive()
+            st.altair_chart(f1_chart, use_container_width=True)
+
+        st.markdown("---")
+        st.subheader("🎯 Confusion Matrix Heatmap")
+        st.markdown("Hover over the squares to inspect how categories are confused by the baseline model on the test set.")
+
+        with st.spinner("Computing Confusion Matrix..."):
+            from sklearn.metrics import confusion_matrix
+            if 'X_test' not in st.session_state:
+                with open('train_test_data.pkl', 'rb') as f:
+                    full_data = pickle.load(f)
+                st.session_state['X_test'] = full_data['X_test']
+                st.session_state['y_test'] = full_data['y_test']
+
+            X_test_mat = st.session_state['X_test']
+            y_test_lbl = st.session_state['y_test']
+
+            y_pred_base = model.predict(X_test_mat)
+            cm = confusion_matrix(y_test_lbl, y_pred_base)
+
+            cm_data = []
+            for i in range(len(categories)):
+                for j in range(len(categories)):
+                    cm_data.append({
+                        'Actual': categories[i],
+                        'Predicted': categories[j],
+                        'Count': int(cm[i, j])
+                    })
+            cm_df = pd.DataFrame(cm_data)
+
+            cm_chart = alt.Chart(cm_df).mark_rect().encode(
+                x=alt.X('Predicted:N', title='Predicted Category', sort=categories, axis=alt.Axis(labelAngle=-45)),
+                y=alt.Y('Actual:N', title='Actual Category', sort=categories),
+                color=alt.Color('Count:Q', scale=alt.Scale(scheme='blues'), title='Number of Docs'),
+                tooltip=['Actual', 'Predicted', 'Count']
+            ).properties(
+                title="Confusion Matrix Heatmap (Baseline Model)",
+                height=500
+            )
+            st.altair_chart(cm_chart, use_container_width=True)
 
     with tab4:
         st.header("About")
