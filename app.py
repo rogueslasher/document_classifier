@@ -11,7 +11,8 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from nltk.stem import WordNetLemmatizer
 from scipy.sparse import vstack
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import LogisticRegression, SGDClassifier
+from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score, f1_score
 
 
@@ -50,6 +51,30 @@ def preprocess_text(text, stop_words, lemmatizer):
     tokens = [w for w in tokens if w not in stop_words and len(w) > 2]
     tokens = [lemmatizer.lemmatize(w) for w in tokens]
     return ' '.join(tokens)
+
+
+@st.cache_resource
+def load_train_test_data_matrices():
+    with open('train_test_data.pkl', 'rb') as f:
+        data = pickle.load(f)
+    return data['X_train'], data['X_test'], data['y_train'], data['y_test']
+
+@st.cache_resource
+def get_trained_model(model_name, hyperparams, _X_train, _y_train):
+    if model_name == "Logistic Regression":
+        C_val = hyperparams['C']
+        clf = LogisticRegression(C=C_val, max_iter=1000, solver='lbfgs', random_state=42)
+    elif model_name == "Multinomial Naive Bayes":
+        alpha_val = hyperparams['alpha']
+        clf = MultinomialNB(alpha=alpha_val)
+    elif model_name == "Linear SVM (SGD)":
+        alpha_val = hyperparams['alpha']
+        clf = SGDClassifier(loss='modified_huber', penalty='l2', alpha=alpha_val, random_state=42, max_iter=1000)
+    else:
+        raise ValueError(f"Unknown model name: {model_name}")
+        
+    clf.fit(_X_train, _y_train)
+    return clf
 
 
 def main():
@@ -109,18 +134,66 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
+    # Load dataset matrices
+    X_train_full, X_test, y_train_full, y_test = load_train_test_data_matrices()
+
     stop_words, lemmatizer = load_nltk_data()
-    model, vectorizer, info, results = load_models()
+    model_orig, vectorizer, info, results = load_models()
     categories = info['categories']
     improvement = results['improvement']
+
+    # Sidebar Model Selection
+    st.sidebar.header("🛠️ Classifier Configuration")
+    model_name = st.sidebar.selectbox(
+        "Classifier Model",
+        ["Logistic Regression", "Multinomial Naive Bayes", "Linear SVM (SGD)"],
+        help="Select the machine learning algorithm to train on the dataset."
+    )
+    
+    hyperparams = {}
+    if model_name == "Logistic Regression":
+        C_val = st.sidebar.slider(
+            "Regularization Strength (C)", 
+            min_value=0.01, 
+            max_value=10.0, 
+            value=1.0, 
+            step=0.05, 
+            help="Smaller values specify stronger regularization."
+        )
+        hyperparams['C'] = C_val
+    elif model_name == "Multinomial Naive Bayes":
+        alpha_val = st.sidebar.slider(
+            "Smoothing Parameter (Alpha)", 
+            min_value=0.01, 
+            max_value=5.0, 
+            value=1.0, 
+            step=0.05, 
+            help="Laplace smoothing parameter."
+        )
+        hyperparams['alpha'] = alpha_val
+    elif model_name == "Linear SVM (SGD)":
+        alpha_val = st.sidebar.select_slider(
+            "Regularization Parameter (Alpha)", 
+            options=[1e-5, 1e-4, 1e-3, 1e-2, 1e-1], 
+            value=1e-4, 
+            help="Multiplier for the regularization penalty."
+        )
+        hyperparams['alpha'] = alpha_val
+
+    # Dynamically train model based on sliders
+    model = get_trained_model(model_name, hyperparams, X_train_full, y_train_full)
+    
+    # Evaluate custom model accuracy on test set
+    y_pred_custom = model.predict(X_test)
+    custom_accuracy = accuracy_score(y_test, y_pred_custom)
 
     st.markdown('<h1 class="main-title">📄 Document Classification with Active Learning</h1>', unsafe_allow_html=True)
     st.markdown("---")
 
-    st.sidebar.header("📊 Project Stats")
+    st.sidebar.header("📊 Current Model Stats")
+    st.sidebar.metric("Test Accuracy", f"{custom_accuracy*100:.2f}%")
     st.sidebar.metric("Categories", len(categories))
     st.sidebar.metric("Training Samples", f"{info['training_samples']:,}")
-    st.sidebar.metric("Final Accuracy", f"{info['accuracy']*100:.2f}%")
     st.sidebar.metric("Vocabulary Size", f"{info['vocabulary_size']:,}")
 
     st.sidebar.markdown("---")
