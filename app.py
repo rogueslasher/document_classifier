@@ -639,38 +639,49 @@ def main():
 
     with tab3:
         st.header("🔍 Category Feature Explorer")
-        st.markdown(
-            "Inspect the top **15 words** that are most strongly associated with each class based on the model's coefficients. "
-            "This highlights what features (keywords) the classifier has learned to value most for making its decisions."
-        )
-
-        sel_cat_str = st.selectbox(
-            "Select Category to Explore:",
-            categories,
-            index=0,
-            key="feature_explorer_category_select"
-        )
-        sel_cat_idx = categories.index(sel_cat_str)
-
-        from src.utils import get_top_features_for_category
-        top_feat_df = get_top_features_for_category(model, vectorizer, sel_cat_idx, top_n=15)
-
-        if not top_feat_df.empty:
-            top_feat_df = top_feat_df.sort_values(by="Weight", ascending=True)
-            weight_title = "Log Probability" if model_name == "Multinomial Naive Bayes" else "Coefficient (Weight)"
-            
-            chart_feat = alt.Chart(top_feat_df).mark_bar(cornerRadiusEnd=4).encode(
-                x=alt.X('Weight:Q', title=weight_title),
-                y=alt.Y('Word:N', sort='-x', title='Word'),
-                color=alt.Color('Weight:Q', scale=alt.Scale(scheme='blues', reverse=(model_name != "Multinomial Naive Bayes")), legend=None),
-                tooltip=['Word', alt.Tooltip('Weight:Q', format='.4f')]
-            ).properties(
-                title=f"Top Influential Words for '{sel_cat_str}'",
-                height=450
+        if feature_set != "TF-IDF Baseline":
+            st.info(
+                "💡 **Feature Explorer Limitation for Dense Embeddings**\n\n"
+                "For dense sentence embeddings (MiniLM), model coefficients correspond to dimensions in the "
+                "384-dimensional dense semantic vector space rather than individual words in a vocabulary.\n\n"
+                "Because these dimensions are combinations of latent semantic concepts, they cannot be directly mapped "
+                "back to raw keywords.\n\n"
+                "To explore feature contributions for embeddings, use the **🔮 Classify Text** tab, which uses a custom "
+                "**Leave-One-Out (LOO)** perturbation-based approach to highlight word importance on-the-fly!"
             )
-            st.altair_chart(chart_feat, use_container_width=True)
         else:
-            st.warning("Model does not support coefficient extraction.")
+            st.markdown(
+                "Inspect the top **15 words** that are most strongly associated with each class based on the model's coefficients. "
+                "This highlights what features (keywords) the classifier has learned to value most for making its decisions."
+            )
+
+            sel_cat_str = st.selectbox(
+                "Select Category to Explore:",
+                categories,
+                index=0,
+                key="feature_explorer_category_select"
+            )
+            sel_cat_idx = categories.index(sel_cat_str)
+
+            from src.utils import get_top_features_for_category
+            top_feat_df = get_top_features_for_category(model, vectorizer, sel_cat_idx, top_n=15)
+
+            if not top_feat_df.empty:
+                top_feat_df = top_feat_df.sort_values(by="Weight", ascending=True)
+                weight_title = "Log Probability" if model_name == "Multinomial Naive Bayes" else "Coefficient (Weight)"
+                
+                chart_feat = alt.Chart(top_feat_df).mark_bar(cornerRadiusEnd=4).encode(
+                    x=alt.X('Weight:Q', title=weight_title),
+                    y=alt.Y('Word:N', sort='-x', title='Word'),
+                    color=alt.Color('Weight:Q', scale=alt.Scale(scheme='blues', reverse=(model_name != "Multinomial Naive Bayes")), legend=None),
+                    tooltip=['Word', alt.Tooltip('Weight:Q', format='.4f')]
+                ).properties(
+                    title=f"Top Influential Words for '{sel_cat_str}'",
+                    height=450
+                )
+                st.altair_chart(chart_feat, use_container_width=True)
+            else:
+                st.warning("Model does not support coefficient extraction.")
 
     with tab4:
         st.header("📈 Model Performance Analysis")
@@ -765,7 +776,13 @@ def main():
         st.header("About")
         st.write(
             "This project demonstrates Active Learning for text classification "
-            "using Logistic Regression and TF-IDF features on the 20 Newsgroups dataset."
+            "using the 20 Newsgroups dataset. It supports both classical sparse TF-IDF features "
+            "and dense semantic embeddings generated via Sentence Transformers (all-MiniLM-L6-v2)."
+        )
+        st.write(
+            "For model interpretability, it features a TF-IDF coefficient mapper as well as a "
+            "Leave-One-Out (LOO) perturbation explainer to identify word-level feature contributions "
+            "for dense vector representations on-the-fly."
         )
 
 
