@@ -1,50 +1,35 @@
-# 📄 Document Classifier with Active Learning & Explainable AI (LIME & LOO)
+# Document Classifier with Active Learning & Local Explanations
 
-A premium, interactive Machine Learning web application that demonstrates **Active Learning** (Human-in-the-Loop) and **Explainable AI (XAI)** on the 20 Newsgroups text classification dataset. Built with Python, Streamlit, Scikit-Learn, Sentence-Transformers, NLTK, and Altair.
+This is a Streamlit web application that demonstrates **Active Learning** (Human-in-the-Loop) and **Explainable AI (XAI)** on the 20 Newsgroups text classification dataset. The project supports both classic sparse TF-IDF features and dense semantic sentence embeddings.
 
 ---
 
 ## 🌟 Key Features
 
-### 1. 🔮 Explainable Document Classification
-*   **Feature Representation Toggle:** Toggle dynamically between classic sparse **TF-IDF Baseline** features and dense **Sentence Embeddings (MiniLM)** semantic features.
-*   **Dual Explainability Engines:**
-    *   *TF-IDF Baseline:* Calculates word contributions based on token TF-IDF weights and model parameters (coefficients/log-probabilities).
-    *   *Sentence Embeddings:* Utilizes a custom **Leave-One-Out (LOO)** perturbation-based approach to dynamically highlight word contributions by measuring prediction probability drops when individual tokens are removed.
-*   **Intuitive Visual Coding:**
-    *   **Vibrant Green:** Words that drove the classification *towards* the predicted class (positive influence).
-    *   **Vibrant Red:** Words that drove the classification *away* from the predicted class (negative influence).
-*   **Interactive Tooltips:** Hover over any highlighted word to inspect its numeric contribution score.
+### 1. Local Word Explanations
+*   **TF-IDF Explanations:** Highlights word contributions using model coefficients (or log-odds ratios for Naive Bayes).
+*   **Embedding Explanations:** Uses a custom **Leave-One-Out (LOO)** perturbation method. It sequentially removes each token from the text and measures the drop in prediction probability to calculate word importance.
+*   **Visual Highlights:** Green words increase confidence in the predicted class, while red words decrease it. You can hover over any highlighted word to inspect its numeric contribution score.
 
-### 2. 🛠️ Classifier Selection & Hyperparameter Tuning (Sidebar)
-*   **Algorithm Selector:** Toggle between three classic classifiers: **Logistic Regression**, **Multinomial Naive Bayes**, and **Linear SVM (SGD)**.
-*   **Embedding Compatibility Filtering:** Since dense sentence embeddings contain negative values, **Multinomial Naive Bayes is automatically disabled** and a helpful notice is shown when "Sentence Embeddings" is active.
-*   **Hyperparameter Sliders:** Tune regularization strength ($C$ for Logistic Regression, $\alpha$ for SVM) and Laplace smoothing ($\alpha$ for Naive Bayes) in real-time.
-*   **Live Metrics Evaluation:** Adjusting configurations retrains the model dynamically on the active features, instantly updating the test accuracy card.
+### 2. Live Model Configuration
+*   **Multiple Classifiers:** Swap between **Logistic Regression**, **Multinomial Naive Bayes**, and a **Linear SVM** (trained via SGD with modified Huber loss).
+*   **Hyperparameter Tuning:** Adjust parameters (like regularization strength $C$ or Laplace smoothing $\alpha$) using sidebar sliders and watch the model retrain in milliseconds.
+*   **Embedding Constraints:** The app automatically disables Multinomial Naive Bayes when using dense sentence embeddings because embeddings contain negative values.
 
-### 3. ⚙️ Interactive Active Learning Studio (Human-in-the-Loop)
-*   **Feature Set Synchronized:** Automatically matches the selected feature set (TF-IDF sparse matrices or MiniLM dense embeddings arrays).
-*   **Auto-Reset:** Automatically resets the labeling history and pool state when toggling between TF-IDF and Sentence Embeddings to prevent shape mismatch errors.
-*   **Uncertainty Sampling Strategies:** Select how to sample documents using **Entropy** or **Margin** uncertainty, or **Random** selection.
-*   **Live Retraining:** Submit the correct category label. The selected model instantly retrains on the updated training pool and plots its live accuracy gains on the chart.
+### 3. Active Learning Labeling Studio
+*   **Human-in-the-Loop:** Act as the oracle to label documents that the model is most uncertain about.
+*   **Sampling Strategies:** Choose between **Entropy**, **Margin** uncertainty, or **Random** sampling.
+*   **Live Retraining:** Once you submit a label, the model retrains instantly, updates the metrics, and plots your progress against pre-calculated benchmarks.
+*   **Auto-Reset:** Switching feature sets automatically resets the labeling studio to avoid shape mismatch issues.
 
-### 4. 🔍 Category Feature Explorer
-*   **Keyword Association Charts:** Select any of the 20 categories to inspect the **top 15 most indicative words** learned by the model (active for TF-IDF representations).
-*   **Latent Space Explanations:** Displays an educational explanation when Sentence Embeddings are active, describing why latent semantic dimensions cannot be directly mapped back to raw keywords.
+### 4. Category Feature Explorer
+*   **Word Associations:** Select a class to see the top 15 words most strongly associated with it based on model coefficients (available when TF-IDF is active).
+*   **Latent Space Explanation:** Shows an educational notice when embeddings are active, explaining why 384-dimensional dense semantic vectors cannot be mapped directly back to single words.
 
-### 5. 📈 Advanced Interactive Analytics (Altair)
-*   **Interactive Learning Curves:** Compare Active Learning vs. Random Sampling, overlaid with your interactive live labeling session history.
-*   **Confusion Matrix Heatmap:** Hover over the interactive 20x20 grid to see actual vs. predicted counts and identify common model confusions.
-
-### 6. 📂 Bulk Document Classification
-*   **CSV File Upload:** Process batches of documents by uploading a CSV and selecting the text column.
-*   **Dual Batch Inference:**
-    *   *TF-IDF:* Preprocesses and classifies documents row-by-row.
-    *   *Sentence Embeddings:* Performs fast batch embedding and classification using Sentence Transformers to maximize throughput and performance.
-*   **Distribution & Export:** View live progress bars, prediction previews, predicted class distribution charts, and export results as a new CSV.
-
-### 7. 🎨 Modern Design Aesthetics
-*   **Custom Typography & CSS Cards:** Integrates Google's *Outfit* font and applies modern shadow cards that float upward on hover with active border-color highlights.
+### 5. Batch Classification
+*   **CSV Upload:** Process batches of documents by uploading a CSV.
+*   **Optimized Inference:** Uses fast batch encoding for Sentence Transformers to maximize processing speed.
+*   **Export:** Preview predictions, inspect the predicted category distribution, and download the results as a CSV.
 
 ---
 
@@ -78,9 +63,10 @@ A premium, interactive Machine Learning web application that demonstrates **Acti
 
 ---
 
-## 🔬 Model Details
+## 🔬 Technical Details
+
+*   **Dataset:** 20 Newsgroups corpus (10,994 documents split 80/20 into train/test sets).
 *   **Feature Representations:**
-    *   *TF-IDF Baseline:* Sparse representation (Max features: 5,000, unigrams, minimum document frequency = 5).
-    *   *Sentence Embeddings:* Dense representation (384-dimensional vectors from `all-MiniLM-L6-v2` Sentence Transformer, cached locally to `X_train_emb.npy` and `X_test_emb.npy` for millisecond-level load times).
-*   **Classifiers:** Logistic Regression, Linear SVM (SGD), and Multinomial Naive Bayes (TF-IDF only).
-*   **Dataset:** 20 Newsgroups (10,994 total documents split 80/20 into train/test sets).
+    *   *TF-IDF Baseline:* Sparse vectors (5,000 max features, unigrams, min document frequency = 5).
+    *   *Sentence Embeddings:* Dense vectors from `all-MiniLM-L6-v2` (cached locally to `X_train_emb.npy` and `X_test_emb.npy` after the first run to allow instant subsequent loading).
+*   **Models:** Logistic Regression (L-BFGS), SGDClassifier (linear SVM), and Multinomial Naive Bayes.
