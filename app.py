@@ -262,8 +262,13 @@ def main():
             if not user_input.strip():
                 st.warning("Please enter some text.")
             else:
-                cleaned = preprocess_text(user_input, stop_words, lemmatizer)
-                X = vectorizer.transform([cleaned])
+                if feature_set == "TF-IDF Baseline":
+                    cleaned = preprocess_text(user_input, stop_words, lemmatizer)
+                    X = vectorizer.transform([cleaned])
+                else:
+                    from src.utils import get_embeddings_model
+                    encoder = get_embeddings_model()
+                    X = encoder.encode([user_input])
                 prediction = model.predict(X)[0]
                 probabilities = model.predict_proba(X)[0]
 
@@ -298,11 +303,18 @@ def main():
                     st.altair_chart(chart, use_container_width=True)
 
                 # Explain prediction - Word Highlights
-                from src.utils import explain_prediction, get_highlighted_html
+                from src.utils import explain_prediction, explain_embeddings_prediction_loo, get_highlighted_html
                 with st.spinner("Analyzing feature contributions..."):
-                    word_contributions = explain_prediction(
-                        user_input, vectorizer, model, prediction, stop_words, lemmatizer
-                    )
+                    if feature_set == "TF-IDF Baseline":
+                        word_contributions = explain_prediction(
+                            user_input, vectorizer, model, prediction, stop_words, lemmatizer
+                        )
+                    else:
+                        from src.utils import get_embeddings_model
+                        encoder = get_embeddings_model()
+                        word_contributions = explain_embeddings_prediction_loo(
+                            user_input, encoder, model, prediction, stop_words, lemmatizer
+                        )
                     highlighted_html = get_highlighted_html(
                         user_input, word_contributions, lemmatizer
                     )
