@@ -124,3 +124,32 @@ def get_highlighted_html(original_text, word_contributions, lemmatizer):
             highlighted_tokens.append(token)
             
     return "".join(highlighted_tokens)
+
+def get_top_features_for_category(model, vectorizer, category_idx, top_n=15):
+    """
+    Retrieves the top N features (words) with the highest weights/probabilities 
+    for a given category index and model.
+    """
+    feature_names = vectorizer.get_feature_names_out()
+    
+    # Check if the model is MultinomialNB
+    if hasattr(model, 'feature_log_prob_'):
+        coefs = model.feature_log_prob_[category_idx]
+    elif hasattr(model, 'coef_'):
+        coefs = model.coef_
+        if len(coefs.shape) > 1 and coefs.shape[0] > 1:
+            coefs = coefs[category_idx]
+        else:
+            coefs = coefs[0] if category_idx == 1 else -coefs[0]
+    else:
+        return pd.DataFrame(columns=['Word', 'Weight'])
+        
+    top_indices = np.argsort(coefs)[-top_n:][::-1]
+    
+    top_words = [feature_names[idx] for idx in top_indices]
+    top_weights = [float(coefs[idx]) for idx in top_indices]
+    
+    return pd.DataFrame({
+        'Word': top_words,
+        'Weight': top_weights
+    })
