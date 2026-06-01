@@ -148,6 +148,83 @@ def main():
                     unsafe_allow_html=True
                 )
 
+        # Batch classification section
+        st.markdown("---")
+        st.subheader("📂 Batch Classification (CSV Upload)")
+        st.markdown(
+            "Upload a CSV file containing multiple documents. Select the column containing "
+            "the text, and download the prediction results as a new CSV file."
+        )
+
+        uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
+        if uploaded_file is not None:
+            df_upload = pd.read_csv(uploaded_file)
+            columns = df_upload.columns.tolist()
+            text_col = st.selectbox("Select the column containing document text:", columns)
+
+            if st.button("🚀 Classify Batch", type="primary"):
+                if df_upload[text_col].isnull().any():
+                    st.warning("Warning: Selected column contains empty/null rows. These will be classified as empty.")
+
+                total_rows = len(df_upload)
+                preds = []
+                confidences = []
+
+                progress_bar = st.progress(0)
+                status_text = st.empty()
+
+                for idx, row in df_upload.iterrows():
+                    text_val = str(row[text_col])
+                    if not text_val.strip() or text_val == "nan":
+                        preds.append("N/A")
+                        confidences.append(0.0)
+                    else:
+                        cleaned_val = preprocess_text(text_val, stop_words, lemmatizer)
+                        X_val = vectorizer.transform([cleaned_val])
+                        pred_val = model.predict(X_val)[0]
+                        prob_val = model.predict_proba(X_val)[0][pred_val]
+
+                        preds.append(categories[pred_val])
+                        confidences.append(prob_val * 100)
+
+                    progress = (idx + 1) / total_rows
+                    progress_bar.progress(progress)
+                    status_text.text(f"Processing row {idx + 1}/{total_rows}...")
+
+                progress_bar.empty()
+                status_text.success("Batch classification complete!")
+
+                df_results = df_upload.copy()
+                df_results['Predicted Category'] = preds
+                df_results['Confidence (%)'] = confidences
+
+                col_stats1, col_stats2 = st.columns([1, 1])
+                with col_stats1:
+                    st.markdown("#### Preview Predictions")
+                    st.dataframe(df_results.head(10))
+
+                with col_stats2:
+                    st.markdown("#### Category Distribution")
+                    dist_df = df_results['Predicted Category'].value_counts().reset_index()
+                    dist_df.columns = ['Category', 'Count']
+
+                    import altair as alt
+                    dist_chart = alt.Chart(dist_df).mark_bar(cornerRadiusEnd=4).encode(
+                        x=alt.X('Count:Q', title='Document Count'),
+                        y=alt.Y('Category:N', sort='-x', title='Category'),
+                        color=alt.Color('Count:Q', scale=alt.Scale(scheme='blues', reverse=True), legend=None),
+                        tooltip=['Category', 'Count']
+                    ).properties(height=250)
+                    st.altair_chart(dist_chart, use_container_width=True)
+
+                csv_data = df_results.to_csv(index=False).encode('utf-8')
+                st.download_button(
+                    label="📥 Download Predictions CSV",
+                    data=csv_data,
+                    file_name="classified_documents.csv",
+                    mime="text/csv"
+                )
+
     with tab2:
         st.header("⚙️ Active Learning Labeling Studio")
         st.markdown(
