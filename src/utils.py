@@ -41,7 +41,7 @@ def load_raw_train_test_data():
 def explain_prediction(text, vectorizer, model, pred_class_idx, stop_words, lemmatizer):
     """
     Calculates the contribution of each word in the input text towards the predicted class.
-    Contribution = word_tfidf_value * class_coefficient.
+    Contribution = word_tfidf_value * class_coefficient/log-odds.
     """
     cleaned = preprocess_text(text, stop_words, lemmatizer)
     words = cleaned.split()
@@ -52,13 +52,24 @@ def explain_prediction(text, vectorizer, model, pred_class_idx, stop_words, lemm
     X = vectorizer.transform([cleaned])
     feature_names = vectorizer.get_feature_names_out()
     
-    # Retrieve model coefficients for target class
-    coefs = model.coef_
-    if len(coefs.shape) > 1 and coefs.shape[0] > 1:
-        class_coefs = coefs[pred_class_idx]
+    # Determine the coefficients dynamically based on model attributes
+    if hasattr(model, 'feature_log_prob_'):
+        # MultinomialNB: Calculate log-odds of the predicted class vs the average of other classes
+        log_probs = model.feature_log_prob_
+        target_log_prob = log_probs[pred_class_idx]
+        n_classes = log_probs.shape[0]
+        other_log_prob_sum = np.sum(log_probs, axis=0) - target_log_prob
+        mean_other_log_prob = other_log_prob_sum / (n_classes - 1)
+        class_coefs = target_log_prob - mean_other_log_prob
+    elif hasattr(model, 'coef_'):
+        # Linear models (LogisticRegression, SGDClassifier)
+        coefs = model.coef_
+        if len(coefs.shape) > 1 and coefs.shape[0] > 1:
+            class_coefs = coefs[pred_class_idx]
+        else:
+            class_coefs = coefs[0] if pred_class_idx == 1 else -coefs[0]
     else:
-        # Binary classification fallback
-        class_coefs = coefs[0] if pred_class_idx == 1 else -coefs[0]
+        return {}
         
     word_contributions = {}
     
