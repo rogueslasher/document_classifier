@@ -157,7 +157,6 @@ def main():
                     st.metric("Confidence", f"{confidence:.1f}%")
 
                 with col2:
-                    import altair as alt
                     prob_df = pd.DataFrame({
                         'Category': categories,
                         'Probability': probabilities * 100
@@ -262,7 +261,6 @@ def main():
                     dist_df = df_results['Predicted Category'].value_counts().reset_index()
                     dist_df.columns = ['Category', 'Count']
 
-                    import altair as alt
                     dist_chart = alt.Chart(dist_df).mark_bar(cornerRadiusEnd=4).encode(
                         x=alt.X('Count:Q', title='Document Count'),
                         y=alt.Y('Category:N', sort='-x', title='Category'),
