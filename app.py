@@ -15,11 +15,14 @@ from sklearn.metrics import accuracy_score, f1_score
 
 
 @st.cache_resource
-def load_nltk_data():
+def download_nltk_resources():
     nltk.download('stopwords', quiet=True)
     nltk.download('punkt', quiet=True)
     nltk.download('wordnet', quiet=True)
     nltk.download('omw-1.4', quiet=True)
+
+def load_nltk_data():
+    download_nltk_resources()
     return stopwords.words('english'), WordNetLemmatizer()
 
 
@@ -67,18 +70,29 @@ def main():
             
             /* Custom styled metric card wrappers */
             div[data-testid="stMetric"] {
-                background-color: #ffffff;
-                border: 1px solid #e2e8f0;
-                border-radius: 12px;
-                padding: 15px 20px;
-                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
-                transition: transform 0.2s, box-shadow 0.2s;
+                background-color: #ffffff !important;
+                border: 1px solid #e2e8f0 !important;
+                border-radius: 12px !important;
+                padding: 15px 20px !important;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03) !important;
+                transition: transform 0.2s, box-shadow 0.2s !important;
             }
             
             div[data-testid="stMetric"]:hover {
-                transform: translateY(-2px);
-                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-                border-color: #3b82f6;
+                transform: translateY(-2px) !important;
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05) !important;
+                border-color: #3b82f6 !important;
+            }
+
+            /* Explicitly style metric labels and values to guarantee readability */
+            div[data-testid="stMetric"] div[data-testid="stMetricValue"] {
+                color: #0f172a !important;
+            }
+            div[data-testid="stMetric"] [data-testid="stMetricLabel"] {
+                color: #475569 !important;
+            }
+            div[data-testid="stMetric"] label {
+                color: #475569 !important;
             }
 
             /* Custom styled main header */
