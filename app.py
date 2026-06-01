@@ -202,7 +202,7 @@ def main():
     st.sidebar.header("🎯 Active Learning Advantage")
     st.sidebar.metric("Accuracy Gain", f"+{improvement:.2f}pp")
 
-    tab1, tab2, tab3, tab4 = st.tabs(["🔮 Classify Text", "⚙️ Labeling Studio", "📈 Model Performance", "ℹ️ About"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🔮 Classify Text", "⚙️ Labeling Studio", "🔍 Feature Explorer", "📈 Model Performance", "ℹ️ About"])
 
     with tab1:
         st.header("Classify a Document")
@@ -552,6 +552,41 @@ def main():
                     st.rerun()
 
     with tab3:
+        st.header("🔍 Category Feature Explorer")
+        st.markdown(
+            "Inspect the top **15 words** that are most strongly associated with each class based on the model's coefficients. "
+            "This highlights what features (keywords) the classifier has learned to value most for making its decisions."
+        )
+
+        sel_cat_str = st.selectbox(
+            "Select Category to Explore:",
+            categories,
+            index=0,
+            key="feature_explorer_category_select"
+        )
+        sel_cat_idx = categories.index(sel_cat_str)
+
+        from src.utils import get_top_features_for_category
+        top_feat_df = get_top_features_for_category(model, vectorizer, sel_cat_idx, top_n=15)
+
+        if not top_feat_df.empty:
+            top_feat_df = top_feat_df.sort_values(by="Weight", ascending=True)
+            weight_title = "Log Probability" if model_name == "Multinomial Naive Bayes" else "Coefficient (Weight)"
+            
+            chart_feat = alt.Chart(top_feat_df).mark_bar(cornerRadiusEnd=4).encode(
+                x=alt.X('Weight:Q', title=weight_title),
+                y=alt.Y('Word:N', sort='-x', title='Word'),
+                color=alt.Color('Weight:Q', scale=alt.Scale(scheme='blues', reverse=(model_name != "Multinomial Naive Bayes")), legend=None),
+                tooltip=['Word', alt.Tooltip('Weight:Q', format='.4f')]
+            ).properties(
+                title=f"Top Influential Words for '{sel_cat_str}'",
+                height=450
+            )
+            st.altair_chart(chart_feat, use_container_width=True)
+        else:
+            st.warning("Model does not support coefficient extraction.")
+
+    with tab4:
         st.header("📈 Model Performance Analysis")
         st.markdown(
             "Compare the learning efficiency of **Active Learning** vs. **Random Sampling**. "
@@ -649,7 +684,7 @@ def main():
             )
             st.altair_chart(cm_chart, use_container_width=True)
 
-    with tab4:
+    with tab5:
         st.header("About")
         st.write(
             "This project demonstrates Active Learning for text classification "
