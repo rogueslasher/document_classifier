@@ -352,32 +352,54 @@ def main():
                     st.warning("Warning: Selected column contains empty/null rows. These will be classified as empty.")
 
                 total_rows = len(df_upload)
-                preds = []
-                confidences = []
+                preds = [None] * total_rows
+                confidences = [None] * total_rows
 
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-
+                # Pre-identify empty/nan rows
+                valid_indices = []
+                valid_texts = []
                 for idx, row in df_upload.iterrows():
                     text_val = str(row[text_col])
                     if not text_val.strip() or text_val == "nan":
-                        preds.append("N/A")
-                        confidences.append(0.0)
+                        preds[idx] = "N/A"
+                        confidences[idx] = 0.0
                     else:
-                        cleaned_val = preprocess_text(text_val, stop_words, lemmatizer)
-                        X_val = vectorizer.transform([cleaned_val])
-                        pred_val = model.predict(X_val)[0]
-                        prob_val = model.predict_proba(X_val)[0][pred_val]
+                        valid_indices.append(idx)
+                        valid_texts.append(text_val)
 
-                        preds.append(categories[pred_val])
-                        confidences.append(prob_val * 100)
+                if valid_texts:
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
 
-                    progress = (idx + 1) / total_rows
-                    progress_bar.progress(progress)
-                    status_text.text(f"Processing row {idx + 1}/{total_rows}...")
+                    if feature_set == "TF-IDF Baseline":
+                        for i, (idx, text_val) in enumerate(zip(valid_indices, valid_texts)):
+                            status_text.text(f"Processing row {idx + 1}/{total_rows}...")
+                            cleaned_val = preprocess_text(text_val, stop_words, lemmatizer)
+                            X_val = vectorizer.transform([cleaned_val])
+                            pred_val = model.predict(X_val)[0]
+                            prob_val = model.predict_proba(X_val)[0][pred_val]
+                            preds[idx] = categories[pred_val]
+                            confidences[idx] = prob_val * 100
+                            progress_bar.progress((idx + 1) / total_rows)
+                    else:
+                        status_text.text("Generating embeddings for batch...")
+                        from src.utils import get_embeddings_model
+                        encoder = get_embeddings_model()
+                        X_vals = encoder.encode(valid_texts, show_progress_bar=False)
 
-                progress_bar.empty()
-                status_text.success("Batch classification complete!")
+                        status_text.text("Classifying documents...")
+                        pred_vals = model.predict(X_vals)
+                        prob_vals = model.predict_proba(X_vals)
+
+                        for i, idx in enumerate(valid_indices):
+                            pred_idx = pred_vals[i]
+                            prob_val = prob_vals[i][pred_idx]
+                            preds[idx] = categories[pred_idx]
+                            confidences[idx] = prob_val * 100
+                            progress_bar.progress((idx + 1) / total_rows)
+
+                    progress_bar.empty()
+                    status_text.success("Batch classification complete!")
 
                 df_results = df_upload.copy()
                 df_results['Predicted Category'] = preds
@@ -416,10 +438,14 @@ def main():
             "based on your selected sampling strategy. The model will retrain instantly with your feedback."
         )
 
-        # Check if the model selection or hyperparameters changed in the sidebar, and update the AL model dynamically
+        # Check if the feature set, model selection, or hyperparameters changed, and update/reinitialize
         if 'al_initialized' in st.session_state:
-            if (st.session_state.get('al_model_name') != model_name or 
-                st.session_state.get('al_hyperparams') != hyperparams):
+            if st.session_state.get('al_feature_set') != feature_set:
+                for key in list(st.session_state.keys()):
+                    if key.startswith('al_'):
+                        del st.session_state[key]
+            elif (st.session_state.get('al_model_name') != model_name or 
+                  st.session_state.get('al_hyperparams') != hyperparams):
                 
                 with st.spinner("Updating Active Learning model configuration..."):
                     model_al = recreate_model_instance(model_name, hyperparams)
@@ -453,14 +479,11 @@ def main():
             with st.spinner("Initializing Active Learning Studio (loading datasets)..."):
                 from src.utils import load_raw_train_test_data
                 
-                # Load full matrices
-                with open('train_test_data.pkl', 'rb') as f:
-                    full_data = pickle.load(f)
-                
-                st.session_state['X_train_full'] = full_data['X_train']
-                st.session_state['y_train_full'] = full_data['y_train']
-                st.session_state['X_test'] = full_data['X_test']
-                st.session_state['y_test'] = full_data['y_test']
+                # Use current representation matrices
+                st.session_state['X_train_full'] = X_train_full
+                st.session_state['y_train_full'] = y_train_full
+                st.session_state['X_test'] = X_test
+                st.session_state['y_test'] = y_test
                 
                 # Load raw text data
                 df_train, df_test = load_raw_train_test_data()
@@ -490,6 +513,7 @@ def main():
                 st.session_state['al_model'] = model_al
                 st.session_state['al_model_name'] = model_name
                 st.session_state['al_hyperparams'] = hyperparams
+                st.session_state['al_feature_set'] = feature_set
                 st.session_state['al_history'] = [{'n_labeled': 500, 'accuracy': acc, 'f1': f1}]
                 st.session_state['al_current_sample_idx'] = None
                 st.session_state['al_labeled_count'] = 0
@@ -553,6 +577,8 @@ def main():
             true_cat = df_train.iloc[current_idx]['category']
             
             X_sample = st.session_state['X_train_full'][current_idx]
+            if feature_set != "TF-IDF Baseline":
+                X_sample = X_sample.reshape(1, -1)
             model_al = st.session_state['al_model']
             pred_idx = model_al.predict(X_sample)[0]
             pred_prob = model_al.predict_proba(X_sample)[0][pred_idx] * 100
@@ -586,7 +612,10 @@ def main():
                 if submitted:
                     selected_label_idx = categories.index(selected_label_str)
                     
-                    st.session_state['al_X_train'] = vstack([st.session_state['al_X_train'], X_sample])
+                    if feature_set == "TF-IDF Baseline":
+                        st.session_state['al_X_train'] = vstack([st.session_state['al_X_train'], X_sample])
+                    else:
+                        st.session_state['al_X_train'] = np.vstack([st.session_state['al_X_train'], X_sample])
                     st.session_state['al_y_train'] = np.append(st.session_state['al_y_train'], selected_label_idx)
                     st.session_state['al_pool_indices'].remove(current_idx)
                     
@@ -708,17 +737,8 @@ def main():
 
         with st.spinner("Computing Confusion Matrix..."):
             from sklearn.metrics import confusion_matrix
-            if 'X_test' not in st.session_state:
-                with open('train_test_data.pkl', 'rb') as f:
-                    full_data = pickle.load(f)
-                st.session_state['X_test'] = full_data['X_test']
-                st.session_state['y_test'] = full_data['y_test']
-
-            X_test_mat = st.session_state['X_test']
-            y_test_lbl = st.session_state['y_test']
-
-            y_pred_base = model.predict(X_test_mat)
-            cm = confusion_matrix(y_test_lbl, y_pred_base)
+            y_pred_base = model.predict(X_test)
+            cm = confusion_matrix(y_test, y_pred_base)
 
             cm_data = []
             for i in range(len(categories)):
