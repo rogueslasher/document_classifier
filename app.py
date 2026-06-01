@@ -59,6 +59,31 @@ def load_train_test_data_matrices():
         data = pickle.load(f)
     return data['X_train'], data['X_test'], data['y_train'], data['y_test']
 
+@st.cache_resource
+def load_sentence_embeddings():
+    import os
+    import numpy as np
+    from src.utils import get_embeddings_model, load_raw_train_test_data
+    
+    train_emb_path = "X_train_emb.npy"
+    test_emb_path = "X_test_emb.npy"
+    
+    if os.path.exists(train_emb_path) and os.path.exists(test_emb_path):
+        X_train_emb = np.load(train_emb_path)
+        X_test_emb = np.load(test_emb_path)
+        return X_train_emb, X_test_emb
+        
+    encoder = get_embeddings_model()
+    df_train, df_test = load_raw_train_test_data()
+    
+    X_train_emb = encoder.encode(df_train['text'].tolist(), show_progress_bar=True)
+    X_test_emb = encoder.encode(df_test['text'].tolist(), show_progress_bar=True)
+    
+    np.save(train_emb_path, X_train_emb)
+    np.save(test_emb_path, X_test_emb)
+    
+    return X_train_emb, X_test_emb
+
 def recreate_model_instance(model_name, hyperparams):
     if model_name == "Logistic Regression":
         C_val = hyperparams['C']
@@ -136,19 +161,39 @@ def main():
         </style>
     """, unsafe_allow_html=True)
 
-    # Load dataset matrices
-    X_train_full, X_test, y_train_full, y_test = load_train_test_data_matrices()
+    # Sidebar Feature Set Selection
+    st.sidebar.header("🛠️ Feature Configuration")
+    feature_set = st.sidebar.selectbox(
+        "Feature Representation",
+        ["TF-IDF Baseline", "Sentence Embeddings (MiniLM)"],
+        help="Select the vector representation method to convert text to numbers."
+    )
+
+    # Load dataset matrices or dense embeddings
+    X_train_full_mat, X_test_mat, y_train_full, y_test = load_train_test_data_matrices()
+    
+    if feature_set == "TF-IDF Baseline":
+        X_train_full = X_train_full_mat
+        X_test = X_test_mat
+    else:
+        X_train_full, X_test = load_sentence_embeddings()
 
     stop_words, lemmatizer = load_nltk_data()
     model_orig, vectorizer, info, results = load_models()
     categories = info['categories']
     improvement = results['improvement']
 
-    # Sidebar Model Selection
+    # Sidebar Model Selection (filtered by feature compatibility)
     st.sidebar.header("🛠️ Classifier Configuration")
+    if feature_set == "TF-IDF Baseline":
+        model_options = ["Logistic Regression", "Multinomial Naive Bayes", "Linear SVM (SGD)"]
+    else:
+        model_options = ["Logistic Regression", "Linear SVM (SGD)"]
+        st.sidebar.info("💡 Naive Bayes is disabled for dense embeddings (requires non-negative TF-IDF).")
+
     model_name = st.sidebar.selectbox(
         "Classifier Model",
-        ["Logistic Regression", "Multinomial Naive Bayes", "Linear SVM (SGD)"],
+        model_options,
         help="Select the machine learning algorithm to train on the dataset."
     )
     
