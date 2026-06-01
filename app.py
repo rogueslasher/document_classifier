@@ -59,20 +59,22 @@ def load_train_test_data_matrices():
         data = pickle.load(f)
     return data['X_train'], data['X_test'], data['y_train'], data['y_test']
 
-@st.cache_resource
-def get_trained_model(model_name, hyperparams, _X_train, _y_train):
+def recreate_model_instance(model_name, hyperparams):
     if model_name == "Logistic Regression":
         C_val = hyperparams['C']
-        clf = LogisticRegression(C=C_val, max_iter=1000, solver='lbfgs', random_state=42)
+        return LogisticRegression(C=C_val, max_iter=1000, solver='lbfgs', random_state=42)
     elif model_name == "Multinomial Naive Bayes":
         alpha_val = hyperparams['alpha']
-        clf = MultinomialNB(alpha=alpha_val)
+        return MultinomialNB(alpha=alpha_val)
     elif model_name == "Linear SVM (SGD)":
         alpha_val = hyperparams['alpha']
-        clf = SGDClassifier(loss='modified_huber', penalty='l2', alpha=alpha_val, random_state=42, max_iter=1000)
+        return SGDClassifier(loss='modified_huber', penalty='l2', alpha=alpha_val, random_state=42, max_iter=1000)
     else:
         raise ValueError(f"Unknown model name: {model_name}")
-        
+
+@st.cache_resource
+def get_trained_model(model_name, hyperparams, _X_train, _y_train):
+    clf = recreate_model_instance(model_name, hyperparams)
     clf.fit(_X_train, _y_train)
     return clf
 
@@ -357,6 +359,38 @@ def main():
             "based on your selected sampling strategy. The model will retrain instantly with your feedback."
         )
 
+        # Check if the model selection or hyperparameters changed in the sidebar, and update the AL model dynamically
+        if 'al_initialized' in st.session_state:
+            if (st.session_state.get('al_model_name') != model_name or 
+                st.session_state.get('al_hyperparams') != hyperparams):
+                
+                with st.spinner("Updating Active Learning model configuration..."):
+                    model_al = recreate_model_instance(model_name, hyperparams)
+                    model_al.fit(st.session_state['al_X_train'], st.session_state['al_y_train'])
+                    st.session_state['al_model'] = model_al
+                    
+                    st.session_state['al_model_name'] = model_name
+                    st.session_state['al_hyperparams'] = hyperparams
+                    
+                    # Update initial history evaluation using selected model
+                    y_pred_init = recreate_model_instance(model_name, hyperparams)
+                    X_init = st.session_state['al_X_train'][:500]
+                    y_init = st.session_state['al_y_train'][:500]
+                    y_pred_init.fit(X_init, y_init)
+                    init_acc = accuracy_score(st.session_state['y_test'], y_pred_init.predict(st.session_state['X_test']))
+                    init_f1 = f1_score(st.session_state['y_test'], y_pred_init.predict(st.session_state['X_test']), average='weighted')
+                    st.session_state['al_history'][0] = {'n_labeled': 500, 'accuracy': init_acc, 'f1': init_f1}
+                    
+                    # Update current evaluation
+                    y_pred_cur = model_al.predict(st.session_state['X_test'])
+                    cur_acc = accuracy_score(st.session_state['y_test'], y_pred_cur)
+                    cur_f1 = f1_score(st.session_state['y_test'], y_pred_cur, average='weighted')
+                    st.session_state['al_history'][-1] = {
+                        'n_labeled': len(st.session_state['al_y_train']),
+                        'accuracy': cur_acc,
+                        'f1': cur_f1
+                    }
+
         # Initialize AL session state if not already done
         if 'al_initialized' not in st.session_state:
             with st.spinner("Initializing Active Learning Studio (loading datasets)..."):
@@ -385,7 +419,7 @@ def main():
                 y_labeled = st.session_state['y_train_full'][initial_indices]
                 
                 # Train baseline model for active learning
-                model_al = LogisticRegression(max_iter=1000, solver='lbfgs', random_state=42)
+                model_al = recreate_model_instance(model_name, hyperparams)
                 model_al.fit(X_labeled, y_labeled)
                 
                 # Evaluate
@@ -397,6 +431,8 @@ def main():
                 st.session_state['al_y_train'] = y_labeled
                 st.session_state['al_pool_indices'] = pool_indices
                 st.session_state['al_model'] = model_al
+                st.session_state['al_model_name'] = model_name
+                st.session_state['al_hyperparams'] = hyperparams
                 st.session_state['al_history'] = [{'n_labeled': 500, 'accuracy': acc, 'f1': f1}]
                 st.session_state['al_current_sample_idx'] = None
                 st.session_state['al_labeled_count'] = 0
