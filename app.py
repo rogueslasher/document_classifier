@@ -2,6 +2,7 @@ import streamlit as st
 import pickle
 import numpy as np
 import pandas as pd
+import altair as alt
 import matplotlib.pyplot as plt
 import re
 import nltk
@@ -197,7 +198,7 @@ def main():
                 
                 # HTML Container
                 st.markdown(
-                    f'<div style="background-color: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; font-family: monospace; line-height: 1.8; white-space: pre-wrap; font-size: 15px;">{highlighted_html}</div>',
+                    f'<div style="background-color: #f8f9fa; color: #0f172a; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; font-family: monospace; line-height: 1.8; white-space: pre-wrap; font-size: 15px;">{highlighted_html}</div>',
                     unsafe_allow_html=True
                 )
 
