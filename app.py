@@ -55,12 +55,51 @@ def main():
         layout="wide"
     )
 
+    # Inject Custom CSS for modern design aesthetics
+    st.markdown("""
+        <style>
+            @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
+            
+            /* Apply global Outfit font */
+            html, body, [class*="css"], .stMarkdown, p, h1, h2, h3, h4, h5, h6 {
+                font-family: 'Outfit', sans-serif !important;
+            }
+            
+            /* Custom styled metric card wrappers */
+            div[data-testid="stMetric"] {
+                background-color: #ffffff;
+                border: 1px solid #e2e8f0;
+                border-radius: 12px;
+                padding: 15px 20px;
+                box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            
+            div[data-testid="stMetric"]:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+                border-color: #3b82f6;
+            }
+
+            /* Custom styled main header */
+            .main-title {
+                font-size: 2.5rem !important;
+                font-weight: 700 !important;
+                background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+                -webkit-background-clip: text;
+                -webkit-text-fill-color: transparent;
+                margin-bottom: 1.5rem;
+                display: inline-block;
+            }
+        </style>
+    """, unsafe_allow_html=True)
+
     stop_words, lemmatizer = load_nltk_data()
     model, vectorizer, info, results = load_models()
     categories = info['categories']
     improvement = results['improvement']
 
-    st.title("📄 Document Classification with Active Learning")
+    st.markdown('<h1 class="main-title">📄 Document Classification with Active Learning</h1>', unsafe_allow_html=True)
     st.markdown("---")
 
     st.sidebar.header("📊 Project Stats")
