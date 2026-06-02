@@ -16,10 +16,15 @@ from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score, f1_score
 
 
+import os
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 @st.cache_resource
 def download_nltk_resources():
     nltk.download('stopwords', quiet=True)
     nltk.download('punkt', quiet=True)
+    nltk.download('punkt_tab', quiet=True)
     nltk.download('wordnet', quiet=True)
     nltk.download('omw-1.4', quiet=True)
 
@@ -30,13 +35,13 @@ def load_nltk_data():
 
 @st.cache_resource
 def load_models():
-    with open('final_model.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR, 'final_model.pkl'), 'rb') as f:
         model = pickle.load(f)
-    with open('tfidf_vectorizer.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR, 'tfidf_vectorizer.pkl'), 'rb') as f:
         vectorizer = pickle.load(f)
-    with open('deployment_info.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR, 'deployment_info.pkl'), 'rb') as f:
         info = pickle.load(f)
-    with open('active_learning_results.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR, 'active_learning_results.pkl'), 'rb') as f:
         results = pickle.load(f)
     return model, vectorizer, info, results
 
@@ -55,18 +60,17 @@ def preprocess_text(text, stop_words, lemmatizer):
 
 @st.cache_resource
 def load_train_test_data_matrices():
-    with open('train_test_data.pkl', 'rb') as f:
+    with open(os.path.join(BASE_DIR, 'train_test_data.pkl'), 'rb') as f:
         data = pickle.load(f)
     return data['X_train'], data['X_test'], data['y_train'], data['y_test']
 
 @st.cache_resource
 def load_sentence_embeddings():
-    import os
     import numpy as np
     from src.utils import get_embeddings_model, load_raw_train_test_data
     
-    train_emb_path = "X_train_emb.npy"
-    test_emb_path = "X_test_emb.npy"
+    train_emb_path = os.path.join(BASE_DIR, "X_train_emb.npy")
+    test_emb_path = os.path.join(BASE_DIR, "X_test_emb.npy")
     
     if os.path.exists(train_emb_path) and os.path.exists(test_emb_path):
         X_train_emb = np.load(train_emb_path)

@@ -24,12 +24,15 @@ def preprocess_text(text, stop_words, lemmatizer):
     tokens = [lemmatizer.lemmatize(w) for w in tokens]
     return ' '.join(tokens)
 
+import os
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 def load_raw_train_test_data():
     """
     Loads preprocessed_data.pkl and splits it in the exact same way as feature_engineering.ipynb.
     This guarantees 1-to-1 correspondence with the row indices in X_train_tfidf.
     """
-    df = pd.read_pickle('preprocessed_data.pkl')
+    df = pd.read_pickle(os.path.join(BASE_DIR, 'preprocessed_data.pkl'))
     df_train, df_test = train_test_split(
         df, 
         test_size=0.2, 
