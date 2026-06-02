@@ -40,7 +40,14 @@ y_test*
 # Or ignore all numpy arrays
 *.npy
 
+# Ignore all pickle files, but keep the ones needed for deployment
 *.pkl
+!final_model.pkl
+!tfidf_vectorizer.pkl
+!deployment_info.pkl
+!active_learning_results.pkl
+!train_test_data.pkl
+!preprocessed_data.pkl
 # Optional: ignore any train/test folders
 train/
 test/
